@@ -1,4 +1,9 @@
 //! Implementation of [`TaskContext`]
+//! Process management syscalls
+//! 
+use crate::{
+    config::MAX_SYSCALL_NUM,
+};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -10,6 +15,12 @@ pub struct TaskContext {
     sp: usize,
     /// s0-11 register, callee saved
     s: [usize; 12],
+    ///time
+    pub time: usize,
+    ///syscall
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    ///first judge
+    pub first: bool,
 }
 
 impl TaskContext {
@@ -19,6 +30,9 @@ impl TaskContext {
             ra: 0,
             sp: 0,
             s: [0; 12],
+            time: 0,
+            syscall_times: [0;MAX_SYSCALL_NUM],
+            first: true,
         }
     }
     /// Create a new task context with a trap return addr and a kernel stack pointer
@@ -30,6 +44,9 @@ impl TaskContext {
             ra: __restore as usize,
             sp: kstack_ptr,
             s: [0; 12],
+            time: 0,
+            syscall_times: [0;MAX_SYSCALL_NUM],
+            first: true,
         }
     }
 }

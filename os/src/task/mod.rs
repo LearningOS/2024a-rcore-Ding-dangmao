@@ -15,7 +15,7 @@ mod switch;
 mod task;
 
 use crate::config::MAX_APP_NUM;
-use crate::timer::get_time;
+use crate::timer::get_time_ms;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
@@ -83,7 +83,8 @@ impl TaskManager {
         task0.task_status = TaskStatus::Running;
         if task0.task_cx.first {
             task0.task_cx.first=false;
-            task0.task_cx.time=get_time();
+            task0.task_cx.time=get_time_ms() as usize;
+           // println!("first time: {}",task0.task_cx.time);
         }
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
@@ -129,7 +130,9 @@ impl TaskManager {
             inner.tasks[next].task_status = TaskStatus::Running;
             if inner.tasks[next].task_cx.first {
                 inner.tasks[next].task_cx.first=false;
-                inner.tasks[next].task_cx.time=get_time();
+                inner.tasks[next].task_cx.time=get_time_ms() as usize;
+             //   println!("first time: {}",inner.tasks[next].task_cx.time);
+              //  println!("now time: {}",get_time_ms());
             }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;

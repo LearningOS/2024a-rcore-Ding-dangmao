@@ -13,6 +13,7 @@ mod context;
 mod switch;
 #[allow(clippy::module_inception)]
 mod task;
+use crate::config::MAX_SYSCALL_NUM;
 
 use crate::config::MAX_APP_NUM;
 use crate::timer::get_time_ms;
@@ -55,6 +56,9 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            time: 0,
+            syscall_times: [0;MAX_SYSCALL_NUM],
+            first: true
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -81,9 +85,9 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
-        if task0.task_cx.first {
-            task0.task_cx.first=false;
-            task0.task_cx.time=get_time_ms() as usize;
+        if task0.first {
+            task0.first=false;
+            task0.time=get_time_ms() as usize;
            // println!("first time: {}",task0.task_cx.time);
         }
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
@@ -128,11 +132,9 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            if inner.tasks[next].task_cx.first {
-                inner.tasks[next].task_cx.first=false;
-                inner.tasks[next].task_cx.time=get_time_ms() as usize;
-             //   println!("first time: {}",inner.tasks[next].task_cx.time);
-              //  println!("now time: {}",get_time_ms());
+            if inner.tasks[next].first {
+                inner.tasks[next].first=false;
+                inner.tasks[next].time=get_time_ms() as usize;
             }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;

@@ -60,8 +60,8 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         let current = inner.current_task;
 
         (*_ti).status=TaskStatus::Running;
-        (*_ti).time=get_time_ms() -inner.tasks[current].task_cx.time;
-        (*_ti).syscall_times.copy_from_slice(&inner.tasks[current].task_cx.syscall_times);
+        (*_ti).time=get_time_ms()  -inner.tasks[current].time;
+        (*_ti).syscall_times.copy_from_slice(&inner.tasks[current].syscall_times);
        // println!("{}",get_time_ms()-inner.tasks[current].task_cx.time);
         drop(inner);
         

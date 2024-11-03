@@ -5,6 +5,12 @@ use crate::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
     },
 };
+use crate::timer::get_time_ms;
+use crate::timer::get_time_us;
+use crate::mm::memory_set::virt_to_pyh;
+use crate::mm::MapPermission;
+use crate::mm::memory_set::mmp;
+use crate::mm::memory_set::unmap;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -43,7 +49,17 @@ pub fn sys_yield() -> isize {
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    -1
+
+    let pd=virt_to_pyh(_ts as usize);
+    let us = get_time_us();
+    unsafe {
+        let pdad:*mut TimeVal = pd as *mut TimeVal;
+        *pdad = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+        };
+    }
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
@@ -51,19 +67,51 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+    //同理
+    let pd=virt_to_pyh(_ti as usize);
+    unsafe{
+        let inner = crate::task::TASK_MANAGER.inner.exclusive_access();
+        let current = inner.current_task;
+
+        let pdad:*mut TaskInfo = pd as *mut TaskInfo;
+        (*pdad).status=TaskStatus::Running;
+        (*pdad).time=get_time_ms()-inner.tasks[current].time;
+        (*pdad).syscall_times.copy_from_slice(&inner.tasks[current].syscall_times);
+        drop(inner);
+    }
+    0
 }
 
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    //_port转换-->MapPermissin   //左移一位
+    //_start  ---   _start+len上取整
+    //构造MapArea
+    if (_port & !0x7 !=0) || (_port & 0x7 == 0){
+        return -1;
+    }
+    let mut d = _port;
+    let mut permissions = MapPermission::empty();
+    if d&1==1 {
+        permissions.insert(MapPermission::R);
+    }
+    d>>=1;
+    if d&1==1 {
+        permissions.insert(MapPermission::W);
+    }
+    d>>=1;
+    if d&1==1 {
+        permissions.insert(MapPermission::X);
+    }
+    permissions.insert(MapPermission::U);
+    return mmp(_start,_start+_len,permissions);
 }
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+    return unmap(_start,_start+_len);
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

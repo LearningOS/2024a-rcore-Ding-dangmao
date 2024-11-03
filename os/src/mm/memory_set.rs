@@ -15,6 +15,9 @@ use core::arch::asm;
 use lazy_static::*;
 use riscv::register::satp;
 
+use crate::task::current_user_token;
+
+
 extern "C" {
     fn stext();
     fn etext();
@@ -35,7 +38,8 @@ lazy_static! {
 }
 /// address space
 pub struct MemorySet {
-    page_table: PageTable,
+    ///
+    pub page_table: PageTable,
     areas: Vec<MapArea>,
 }
 
@@ -272,6 +276,7 @@ pub struct MapArea {
 }
 
 impl MapArea {
+    ///
     pub fn new(
         start_va: VirtAddr,
         end_va: VirtAddr,
@@ -287,6 +292,7 @@ impl MapArea {
             map_perm,
         }
     }
+    ///
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum;
         match self.map_type {
@@ -303,24 +309,28 @@ impl MapArea {
         page_table.map(vpn, ppn, pte_flags);
     }
     #[allow(unused)]
+    ///
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         if self.map_type == MapType::Framed {
             self.data_frames.remove(&vpn);
         }
         page_table.unmap(vpn);
     }
+    ///
     pub fn map(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.map_one(page_table, vpn);
         }
     }
     #[allow(unused)]
+    ///
     pub fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.unmap_one(page_table, vpn);
         }
     }
     #[allow(unused)]
+    ///
     pub fn shrink_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
         for vpn in VPNRange::new(new_end, self.vpn_range.get_end()) {
             self.unmap_one(page_table, vpn)
@@ -328,6 +338,7 @@ impl MapArea {
         self.vpn_range = VPNRange::new(self.vpn_range.get_start(), new_end);
     }
     #[allow(unused)]
+    ///
     pub fn append_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
         for vpn in VPNRange::new(self.vpn_range.get_end(), new_end) {
             self.map_one(page_table, vpn)
@@ -361,7 +372,9 @@ impl MapArea {
 #[derive(Copy, Clone, PartialEq, Debug)]
 /// map type for memory set: identical or framed
 pub enum MapType {
+    ///
     Identical,
+    ///
     Framed,
 }
 
@@ -409,4 +422,98 @@ pub fn remap_test() {
         .unwrap()
         .executable(),);
     println!("remap_test passed!");
+}
+///
+pub fn get_ppn(vpn: VirtPageNum)->PhysPageNum{
+    //let mut kernel_space = KERNEL_SPACE.exclusive_access();
+    //let pte:&PageTableEntry=kernel_space.page_table.map();
+    //pte.ppn()
+    let pgt:PageTable = PageTable::from_token(current_user_token());
+    //println!("in in in in in in");
+    let pte=pgt.translate(vpn).unwrap();
+    //println!("{:?}",pte.ppn());
+    pte.ppn()
+}
+///
+pub fn is_ppn(vpn: VirtPageNum)->bool{
+    let pgt:PageTable = PageTable::from_token(current_user_token());
+    let pte=pgt.translate(vpn);
+    println!("{:?} to {:?}",vpn,pte);
+    return pte!=None && pte!= core::prelude::v1::Some(PageTableEntry::empty());
+}
+///
+pub fn virt_to_pyh(addr: usize)->usize{
+    //此处通过 内存管理将 虚拟地址: TimeVal 转换成 物理地址
+    //检查对齐->虚拟页号->物理页帧->物理地址->操作
+    
+    let vd:VirtAddr=addr.into();
+    let vpn:VirtPageNum;
+    let off = vd.page_offset();
+    if vd.aligned(){
+    vpn=vd.into();
+    }else{
+        vpn=vd.floor();
+    }
+    //println!("{:?}",vd);
+    //println!("{:?}",vpn);
+    let d=get_ppn(vpn);
+    let pd:PhysAddr=d.into();
+    pd.0 + off
+
+}
+///
+pub fn mmp(_start: usize,_end:usize,_permission: MapPermission)->isize{
+    //获得此任务pageTable 
+    //创建新逻辑段
+    //逻辑
+   // let _pgt:PageTable = PageTable::from_token(current_user_token());
+    let start_va:VirtAddr = VirtAddr::from(_start);
+    //let end_va:VirtAddr = VirtAddr::from(_end);
+    if !start_va.aligned(){
+        return -1;
+    }
+    let d=MapArea::new(_start.into(),
+                       _end.into(),
+                       MapType::Framed,
+                       _permission);
+    //验证映射
+    for vpn in d.vpn_range{
+        println!("{:?}",vpn);
+        if is_ppn(vpn) {
+            println!("have: {:?}, what fuck?",vpn);
+            return -1;
+        }
+    }
+    println!("yin she no problem");
+    println!("");
+
+    let mut inner = crate::task::TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].memory_set.push(d,None);
+    return 0;
+}
+///
+pub fn unmap(_start: usize,_end: usize)->isize{
+    let start_va:VirtAddr = VirtAddr::from(_start);
+    let end_va:VirtAddr = VirtAddr::from(_end);
+    if !start_va.aligned() || !end_va.aligned(){
+        return -1;
+    }
+    let mut _pgt:PageTable = PageTable::from_token(current_user_token());
+    let mut d=MapArea::new(
+    _start.into(),
+    _end.into(),
+    MapType::Framed,
+    MapPermission::U);
+    for vpn in d.vpn_range{
+        if !is_ppn(vpn) {
+            return -1;
+        }
+    }
+
+    let mut inner = crate::task::TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    d.unmap(&mut inner.tasks[current].memory_set.page_table);
+    //d.unmap(&mut _pgt);
+    return 0;
 }

@@ -23,6 +23,7 @@ impl TaskManager {
     }
     /// Take a process out of the ready queue
     pub fn fetch(&mut self) -> Option<Arc<TaskControlBlock>> {
+        /* 
         let mut idx:i32=0;
         let mut cnt:i32=0;
         let mut mi_stride:i32=i32::MAX;
@@ -34,8 +35,10 @@ impl TaskManager {
                 cnt+=1;
             }
         }
-        //self.ready_queue.pop_front()
+        //
         self.ready_queue.remove(idx as usize)
+        */
+        self.ready_queue.pop_front()
     }
 }
 

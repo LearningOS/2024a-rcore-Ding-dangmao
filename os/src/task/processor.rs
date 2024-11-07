@@ -12,6 +12,11 @@ use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
 
+use crate::config::BIG_STRIDE;
+
+
+use crate::timer::get_time_ms;
+
 /// Processor management structure
 pub struct Processor {
     ///The task currently executing on the current processor
@@ -61,6 +66,11 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            task_inner.stride+=BIG_STRIDE/(task_inner.prio as i32);
+            if task_inner.first{
+                task_inner.first=false;
+                task_inner.time=get_time_ms() as usize;
+            }
             // release coming task_inner manually
             drop(task_inner);
             // release coming task TCB manually
@@ -108,4 +118,12 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     unsafe {
         __switch(switched_task_cx_ptr, idle_task_cx_ptr);
     }
+}
+
+//记录系统调用
+///
+pub fn syscalladd(id: usize){
+    let task=current_task().unwrap();
+    let mut  task_inner=task.inner_exclusive_access();
+    task_inner.syscall_times[id]+=1;
 }

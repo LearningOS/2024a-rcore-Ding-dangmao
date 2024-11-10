@@ -5,6 +5,11 @@ mod stdio;
 
 use crate::mm::UserBuffer;
 
+pub use inode::linkat;
+pub use inode::unlinkat;
+pub use inode::get_inode_id_from_name;
+pub use inode::state;
+
 /// trait File for all file types
 pub trait File: Send + Sync {
     /// the file readable?

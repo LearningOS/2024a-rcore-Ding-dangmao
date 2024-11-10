@@ -20,7 +20,7 @@ mod processor;
 mod switch;
 #[allow(clippy::module_inception)]
 #[allow(rustdoc::private_intra_doc_links)]
-mod task;
+pub mod task;
 
 use crate::fs::{open_file, OpenFlags};
 use alloc::sync::Arc;
@@ -34,8 +34,16 @@ pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
-    Processor,
+    Processor,syscalladd
 };
+/*
+pub use processor::add_name_name;
+pub use processor::del_name_name;
+pub use processor::get_link_num;
+pub use processor::get_real_name;
+pub use processor::update_add_name_fd;
+ */
+
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
     // There must be an application running.

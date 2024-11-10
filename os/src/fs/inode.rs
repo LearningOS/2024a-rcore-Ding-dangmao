@@ -14,6 +14,7 @@ use bitflags::*;
 use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::*;
 
+
 /// inode in memory
 /// A wrapper around a filesystem inode
 /// to implement File trait atop
@@ -155,4 +156,22 @@ impl File for OSInode {
         }
         total_write_size
     }
+}
+//impl Any for OSInode {}
+
+///
+pub fn linkat(old_name:&str,new_name:&str)->isize{
+    return ROOT_INODE.linkat(old_name,new_name);
+}
+///
+pub fn unlinkat(name:&str)->isize{
+    return ROOT_INODE.unlinkat(name);
+}
+///
+pub fn get_inode_id_from_name(name:&str)->u32{
+    return ROOT_INODE.get_inode_id_from_name(name);
+}
+///
+pub fn state(inode_id: u64)->(u32,bool){
+    return ROOT_INODE.state(inode_id);
 }

@@ -12,6 +12,14 @@ use crate::{
     },
 };
 
+use crate::timer::get_time_ms;
+use crate::timer::get_time_us;
+use crate::mm::memory_set::virt_to_pyh;
+use crate::mm::MapPermission;
+use crate::mm::memory_set::mmp;
+use crate::mm::memory_set::unmap;
+
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct TimeVal {
@@ -122,7 +130,16 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let pd=virt_to_pyh(_ts as usize);
+    let us = get_time_us();
+    unsafe {
+        let pdad:*mut TimeVal = pd as *mut TimeVal;
+        *pdad = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+        };
+    }
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
@@ -133,7 +150,19 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
         "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    //同理
+    let pd=virt_to_pyh(_ti as usize);
+    unsafe{
+        let task = current_task().unwrap();
+        let task_inner = task.inner_exclusive_access();
+
+
+        let pdad:*mut TaskInfo = pd as *mut TaskInfo;
+        (*pdad).status=TaskStatus::Running;
+        (*pdad).time=get_time_ms()-task_inner.time;
+        (*pdad).syscall_times.copy_from_slice(&task_inner.syscall_times);
+    }
+    0
 }
 
 /// YOUR JOB: Implement mmap.
@@ -142,7 +171,27 @@ pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    //_port转换-->MapPermissin   //左移一位
+    //_start  ---   _start+len上取整
+    //构造MapArea
+    if (_port & !0x7 !=0) || (_port & 0x7 == 0){
+        return -1;
+    }
+    let mut d = _port;
+    let mut permissions = MapPermission::empty();
+    if d&1==1 {
+        permissions.insert(MapPermission::R);
+    }
+    d>>=1;
+    if d&1==1 {
+        permissions.insert(MapPermission::W);
+    }
+    d>>=1;
+    if d&1==1 {
+        permissions.insert(MapPermission::X);
+    }
+    permissions.insert(MapPermission::U);
+    return mmp(_start,_start+_len,permissions);
 }
 
 /// YOUR JOB: Implement munmap.
@@ -151,7 +200,7 @@ pub fn sys_munmap(_start: usize, _len: usize) -> isize {
         "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    return unmap(_start,_start+_len);
 }
 
 /// change data segment size
@@ -171,7 +220,21 @@ pub fn sys_spawn(_path: *const u8) -> isize {
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let token = current_user_token();
+    let path = translated_str(token,_path);
+    if let Some(app_inode) = open_file(path.as_str(),OpenFlags::RDONLY){
+        let all_data=app_inode.read_all();
+
+        let current_task = current_task().unwrap();
+        let new_task = current_task.spawn(all_data.as_slice());
+        let new_pid = new_task.pid.0;
+        let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+        trap_cx.x[10]=0;
+        add_task(new_task);
+        new_pid as isize
+    }else{
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
@@ -180,5 +243,11 @@ pub fn sys_set_priority(_prio: isize) -> isize {
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let task = current_task().unwrap();
+    let mut task_inner = task.inner_exclusive_access();
+    if _prio<=1{
+        return -1;
+    }
+    task_inner.prio=_prio;
+    _prio
 }

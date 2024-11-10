@@ -49,6 +49,14 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// deadlock dect
+    pub enable_deadlock_detect: bool,
+    ///
+    pub avaiable: [i32;100],
+    ///
+    pub allocation: [[i32;100];100],
+    ///
+    pub need: [[i32;100];100],
 }
 
 impl ProcessControlBlockInner {
@@ -119,6 +127,10 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    enable_deadlock_detect:false,
+                    avaiable: [0;100],
+                    allocation: [[0;100];100],
+                    need: [[0;100];100],
                 })
             },
         });
@@ -245,6 +257,10 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    enable_deadlock_detect:false,
+                    avaiable: [0;100],
+                    allocation: [[0;100];100],
+                    need: [[0;100];100],
                 })
             },
         });
@@ -281,5 +297,13 @@ impl ProcessControlBlock {
     /// get pid
     pub fn getpid(&self) -> usize {
         self.pid.0
+    }
+    ///
+    pub fn dect_dead_lock_flag(&self)->bool{
+        let inner = self.inner_exclusive_access();
+        //return inner.enable_deadlock_detect
+        let flag=inner.enable_deadlock_detect;
+        drop(inner);
+        flag
     }
 }

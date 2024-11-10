@@ -13,6 +13,8 @@ use core::arch::asm;
 use lazy_static::*;
 use riscv::register::satp;
 
+use crate::task::current_user_token;
+
 extern "C" {
     fn stext();
     fn etext();
@@ -294,15 +296,20 @@ impl MemorySet {
         }
     }
 }
-
+///
 pub struct MapArea {
+    ///
     pub vpn_range: VPNRange,
+    ///
     pub data_frames: BTreeMap<VirtPageNum, FrameTracker>,
+    ///
     pub map_type: MapType,
+    ///
     pub map_perm: MapPermission,
 }
 
 impl MapArea {
+    ///
     pub fn new(
         start_va: VirtAddr,
         end_va: VirtAddr,
@@ -317,7 +324,7 @@ impl MapArea {
             map_type,
             map_perm,
         }
-    }
+    }///
     pub fn from_another(another: &Self) -> Self {
         Self {
             vpn_range: VPNRange::new(another.vpn_range.get_start(), another.vpn_range.get_end()),
@@ -325,7 +332,7 @@ impl MapArea {
             map_type: another.map_type,
             map_perm: another.map_perm,
         }
-    }
+    }///
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         let ppn: PhysPageNum;
         match self.map_type {
@@ -340,30 +347,30 @@ impl MapArea {
         }
         let pte_flags = PTEFlags::from_bits(self.map_perm.bits).unwrap();
         page_table.map(vpn, ppn, pte_flags);
-    }
+    }///
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         if self.map_type == MapType::Framed {
             self.data_frames.remove(&vpn);
         }
         page_table.unmap(vpn);
-    }
+    }///
     pub fn map(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.map_one(page_table, vpn);
         }
-    }
+    }///
     pub fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.unmap_one(page_table, vpn);
         }
-    }
+    }///
     #[allow(unused)]
     pub fn shrink_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
         for vpn in VPNRange::new(new_end, self.vpn_range.get_end()) {
             self.unmap_one(page_table, vpn)
         }
         self.vpn_range = VPNRange::new(self.vpn_range.get_start(), new_end);
-    }
+    }///
     #[allow(unused)]
     pub fn append_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
         for vpn in VPNRange::new(self.vpn_range.get_end(), new_end) {
@@ -394,10 +401,12 @@ impl MapArea {
         }
     }
 }
-
+///
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum MapType {
+    ///
     Identical,
+    ///
     Framed,
 }
 
@@ -438,4 +447,37 @@ pub fn remap_test() {
         .unwrap()
         .executable(),);
     println!("remap_test passed!");
+}
+
+
+///
+pub fn get_ppn(vpn: VirtPageNum)->PhysPageNum{
+    //let mut kernel_space = KERNEL_SPACE.exclusive_access();
+    //let pte:&PageTableEntry=kernel_space.page_table.map();
+    //pte.ppn()
+    let pgt:PageTable = PageTable::from_token(current_user_token());
+    //println!("in in in in in in");
+    let pte=pgt.translate(vpn).unwrap();
+    //println!("{:?}",pte.ppn());
+    pte.ppn()
+}
+///
+pub fn virt_to_pyh(addr: usize)->usize{
+    //此处通过 内存管理将 虚拟地址: TimeVal 转换成 物理地址
+    //检查对齐->虚拟页号->物理页帧->物理地址->操作
+    
+    let vd:VirtAddr=addr.into();
+    let vpn:VirtPageNum;
+    let off = vd.page_offset();
+    if vd.aligned(){
+    vpn=vd.into();
+    }else{
+        vpn=vd.floor();
+    }
+    //println!("{:?}",vd);
+    //println!("{:?}",vpn);
+    let d=get_ppn(vpn);
+    let pd:PhysAddr=d.into();
+    pd.0 + off
+
 }

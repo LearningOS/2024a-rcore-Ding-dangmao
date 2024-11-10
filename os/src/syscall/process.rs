@@ -9,6 +9,10 @@ use crate::{
 };
 use alloc::{string::String, sync::Arc, vec::Vec};
 
+use crate::timer::get_time_us;
+use crate::mm::memory_set::virt_to_pyh;
+
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct TimeVal {
@@ -167,7 +171,16 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().process.upgrade().unwrap().getpid()
     );
-    -1
+    let pd=virt_to_pyh(_ts as usize);
+    let us = get_time_us();
+    unsafe {
+        let pdad:*mut TimeVal = pd as *mut TimeVal;
+        *pdad = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+        };
+    }
+    0
 }
 
 /// task_info syscall

@@ -41,6 +41,11 @@ pub struct TaskControlBlockInner {
     pub task_status: TaskStatus,
     /// It is set when active exit or execution error occurs
     pub exit_code: Option<i32>,
+    ///time
+    pub time: usize,
+
+    ///first?
+    pub first: bool,
 }
 
 impl TaskControlBlockInner {
@@ -75,6 +80,8 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kstack_top),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
+                    time:0,
+                    first:true,
                 })
             },
         }
